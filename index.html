@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>Skyhop</title>
+<meta name="description" content="A pixel platformer: run, hop and stomp across three worlds as Pip the little robot. Plays in the browser with keyboard, touch or gamepad.">
+<meta name="theme-color" content="#15183a">
+<meta name="color-scheme" content="dark">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body data-state="title">
+
+<div class="wrap">
+  <div class="screen" id="screen">
+    <div class="frame" id="frame">
+      <canvas id="game" width="320" height="224" tabindex="-1" aria-label="Skyhop game"></canvas>
+
+      <div class="hud" id="hud" hidden>
+        <span><small>Score</small><b id="hud-score">000000</b></span>
+        <span><small>Coins</small><b id="hud-coins">×00</b></span>
+        <span><small>World</small><b id="hud-world">1</b></span>
+        <span><small>Time</small><b id="hud-time">300</b></span>
+        <span><small>Pip</small><b id="hud-lives">×3</b></span>
+        <button class="hud-btn" id="pause-btn" type="button" aria-label="Pause">❚❚</button>
+      </div>
+      <button class="hud-btn mute" id="mute" type="button" aria-label="Mute sound" aria-pressed="false">♪</button>
+
+      <div class="overlay" id="overlay" hidden></div>
+    </div>
+  </div>
+
+  <div class="pad" id="pad" aria-hidden="true">
+    <div class="dpad" id="dpad"><span>◀</span><span>▶</span></div>
+    <div class="ab">
+      <button type="button" class="btn-b" data-hold="run" tabindex="-1">RUN</button>
+      <button type="button" class="btn-a" data-hold="jump" tabindex="-1">JUMP</button>
+    </div>
+  </div>
+</div>
+
+<noscript><p class="noscript">Skyhop needs JavaScript to run.</p></noscript>
+<script src="levels.js"></script>
+<script src="game.js"></script>
+<script>
+  if ("serviceWorker" in navigator) {
+    addEventListener("load", () => navigator.serviceWorker.register("sw.js").catch(() => {}));
+  }
+</script>
+</body>
+</html>

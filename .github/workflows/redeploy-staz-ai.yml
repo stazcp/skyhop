@@ -1,0 +1,23 @@
+name: redeploy-staz-ai
+
+# staz.ai serves this game from its own CDN at /games/skyhop/, synced from
+# this repo at build time. Redeploy the site whenever the game changes so the
+# new version goes live there.
+# Requires the STAZ_AI_DEPLOY_HOOK repo secret (a Vercel deploy hook URL).
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - ".github/**"
+  workflow_dispatch:
+
+jobs:
+  redeploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger staz.ai deploy hook
+        run: curl -fsS -X POST "$DEPLOY_HOOK" > /dev/null && echo "staz.ai redeploy triggered"
+        env:
+          DEPLOY_HOOK: ${{ secrets.STAZ_AI_DEPLOY_HOOK }}
