@@ -56,6 +56,8 @@
 
   addEventListener("keydown", (e) => {
     audio();
+    // Enter/Space on a focused menu button: let the browser click that button
+    if ((e.code === "Enter" || e.code === "Space") && e.target.closest?.(".overlay button")) return;
     const action = KEYS[e.code];
     if (action) {
       e.preventDefault();
@@ -1360,9 +1362,12 @@
     else if (action === "quit") toTitle();
   }
 
+  // states inside a level, where the game can be paused
+  const inLevel = () => ["intro", "play", "flag", "dead", "clear"].includes(game.state);
+
   function onMenuKey(code) {
     audio();
-    if (game.state === "play" || game.state === "flag") {
+    if (inLevel()) {
       if (code === "Enter" && !game.paused) return pause(true);
       return pause(!game.paused);
     }
@@ -1372,7 +1377,7 @@
 
   function pause(on) {
     if (on === game.paused) return;
-    if (on && !(game.state === "play" || game.state === "flag")) return;
+    if (on && !inLevel()) return;
     game.paused = on;
     releaseAll();
     if (on) {
@@ -1380,7 +1385,7 @@
       sfx("pause");
       setOverlay("pause");
     } else {
-      setOverlay(null);
+      setOverlay(game.state === "intro" ? "intro" : null);
       if (game.state === "play") playMusic(LEVELS[levelIndex].theme);
     }
   }
@@ -1411,6 +1416,47 @@
     canvas.focus({ preventScroll: true });
   }
 
+  // The run in progress, kept for this tab only: a host page (like staz.ai's
+  // Games app) may reload the game's frame, e.g. when going full screen.
+  const RUN_KEY = "skyhop:run";
+  function saveRun() {
+    try {
+      if (!inLevel() || game.state === "clear") return;
+      const run = { level: levelIndex, score: game.score, coins: game.coins, lives: game.lives, checkpoint: game.checkpoint, big: !!player?.big };
+      sessionStorage.setItem(RUN_KEY, JSON.stringify(run));
+    } catch {
+      /* ignore */
+    }
+  }
+  function clearRun() {
+    try {
+      sessionStorage.removeItem(RUN_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+  function resumeRun() {
+    let run = null;
+    try {
+      run = JSON.parse(sessionStorage.getItem(RUN_KEY));
+    } catch {
+      /* ignore */
+    }
+    if (!run || !LEVELS[run.level]) return false;
+    game.score = run.score | 0;
+    game.coins = run.coins | 0;
+    game.lives = Math.max(1, run.lives | 0);
+    game.checkpoint = run.checkpoint || null;
+    startLevel(run.level, true);
+    if (run.big) {
+      player.big = true;
+      player.h = 26;
+      player.y -= 12;
+    }
+    return true;
+  }
+  addEventListener("pagehide", saveRun);
+
   function saveBest() {
     if (game.score > game.best) {
       game.best = game.score;
@@ -1420,6 +1466,7 @@
 
   function gameOver() {
     game.state = "over";
+    clearRun();
     saveBest();
     sfx("over");
     setOverlay("over");
@@ -1427,12 +1474,14 @@
 
   function winGame() {
     game.state = "win";
+    clearRun();
     saveBest();
     sfx("win");
     setOverlay("win");
   }
 
   function toTitle() {
+    clearRun();
     saveBest();
     stopMusic();
     game.paused = false;
@@ -1498,6 +1547,6 @@
   bindTouch();
   resize();
   loadLevel(0);
-  setOverlay("title");
+  if (!resumeRun()) setOverlay("title");
   requestAnimationFrame(frame);
 })();
