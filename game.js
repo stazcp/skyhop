@@ -166,6 +166,8 @@
       master = actx.createGain();
       master.gain.value = muted ? 0 : 1;
       master.connect(actx.destination);
+      // a resumed run can reach play before the first key wakes audio up
+      if (game.state === "play" && !game.paused) playMusic(LEVELS[levelIndex].theme);
     }
     if (actx.state === "suspended") actx.resume();
     return actx;
@@ -1386,6 +1388,7 @@
       setOverlay("pause");
     } else {
       setOverlay(game.state === "intro" ? "intro" : null);
+      canvas.focus({ preventScroll: true });
       if (game.state === "play") playMusic(LEVELS[levelIndex].theme);
     }
   }
@@ -1421,8 +1424,20 @@
   const RUN_KEY = "skyhop:run";
   function saveRun() {
     try {
-      if (!inLevel() || game.state === "clear") return;
-      const run = { level: levelIndex, score: game.score, coins: game.coins, lives: game.lives, checkpoint: game.checkpoint, big: !!player?.big };
+      if (!inLevel()) return;
+      const run = { level: levelIndex, score: game.score, coins: game.coins, lives: game.lives, checkpoint: game.checkpoint, big: !!player?.big, time: null };
+      if (game.state === "flag" || game.state === "clear") {
+        // the level is won: bank the time bonus and pick up at the next world
+        run.score += game.time * 50;
+        run.level++;
+        run.checkpoint = null;
+      } else if (game.state === "dead") {
+        run.lives--;
+        run.big = false;
+      } else if (game.state === "play") {
+        run.time = game.time;
+      }
+      if (run.lives <= 0 || !LEVELS[run.level]) return clearRun();
       sessionStorage.setItem(RUN_KEY, JSON.stringify(run));
     } catch {
       /* ignore */
@@ -1453,6 +1468,7 @@
       player.h = 26;
       player.y -= 12;
     }
+    if (run.time > 0) game.time = run.time;
     return true;
   }
   addEventListener("pagehide", saveRun);
