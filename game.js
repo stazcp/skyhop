@@ -1431,13 +1431,20 @@
         run.score += game.time * 50;
         run.level++;
         run.checkpoint = null;
+        game.reached = Math.max(game.reached, Math.min(run.level, LEVELS.length - 1));
+        store.set("reached", game.reached);
       } else if (game.state === "dead") {
         run.lives--;
         run.big = false;
       } else if (game.state === "play") {
         run.time = game.time;
       }
-      if (run.lives <= 0 || !LEVELS[run.level]) return clearRun();
+      if (run.lives <= 0 || !LEVELS[run.level]) {
+        // the run ends here: keep its score as the best if it beat it
+        game.score = run.score;
+        saveBest();
+        return clearRun();
+      }
       sessionStorage.setItem(RUN_KEY, JSON.stringify(run));
     } catch {
       /* ignore */
