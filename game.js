@@ -1440,9 +1440,12 @@
         run.time = game.time;
       }
       if (run.lives <= 0 || !LEVELS[run.level]) {
-        // the run ends here: keep its score as the best if it beat it
-        game.score = run.score;
-        saveBest();
+        // the run ends here: keep its score as the best if it beat it (without
+        // touching live state — a back/forward-cached page carries on running)
+        if (run.score > game.best) {
+          game.best = run.score;
+          store.set("best", game.best);
+        }
         return clearRun();
       }
       sessionStorage.setItem(RUN_KEY, JSON.stringify(run));
