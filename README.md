@@ -3,6 +3,8 @@
 A small pixel platformer. Run, hop and stomp across three worlds — Meadow,
 Dusk Cliffs and Night Fort — as Pip the little robot. Grab sparks to grow,
 bump blocks for coins, and reach the flag before the clock runs out.
+Already big? The next power block holds a flame: grab it and the run button
+throws bouncing fireballs that take out anything, spiky critters included.
 
 Play it at **[staz.ai/games/skyhop](https://staz.ai/games/skyhop/)** or in the
 Games app on [staz.ai](https://staz.ai/?play=skyhop).
@@ -13,7 +15,7 @@ Games app on [staz.ai](https://staz.ai/?play=skyhop).
 | --- | --- | --- | --- |
 | Move | ← → / A D | stick / d-pad | ◀ ▶ pad |
 | Jump | Space / ↑ / Z | A / B | JUMP |
-| Run | Shift / X | X / Y / RT | RUN |
+| Run (and fire, once powered up) | Shift / X | X / Y / RT | RUN / FIRE |
 | Pause | P / Esc / Enter | Start | ❚❚ |
 | Mute | M | | ♪ |
 

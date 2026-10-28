@@ -3,6 +3,7 @@
 // strings so every row is always the same width.
 //
 // Tiles:    # ground   B brick   ? coin block   P power block   = stone
+//           [ ] pipe lip   { } pipe body
 //           - one-way plank   ^ spikes   o coin
 // Entities: @ start   e blob   s spiky (can't be stomped)   C checkpoint
 //           m platform sliding right and back   v platform sinking and rising
@@ -27,16 +28,17 @@
       col(x, y0, y1, ch) {
         for (let y = y0; y <= y1; y++) set(x, y, ch);
       },
-      // a stone column `h` tiles tall standing on the ground
-      pillar(x, h, w = 2) {
-        for (let i = 0; i < w; i++) L.col(x + i, 12 - h, 11, "=");
-      },
       // a staircase of `n` steps going up (dir 1) or down (dir -1)
       stairs(x, n, dir) {
         for (let i = 0; i < n; i++) {
           const h = dir > 0 ? i + 1 : n - i;
           L.col(x + i, 12 - h, 11, "=");
         }
+      },
+      // a pipe `h` tiles tall (2 wide) standing on the ground
+      pipe(x, h) {
+        L.at(x, 12 - h, "[]");
+        for (let y = 13 - h; y <= 11; y++) L.at(x, y, "{}");
       },
       flag(x) {
         set(x, 2, "F");
@@ -58,10 +60,10 @@
       L.at(19, 8, "B?BPB");
       L.at(21, 4, "?");
       L.at(25, 11, "e");
-      L.pillar(30, 2);
-      L.pillar(39, 3);
+      L.pipe(30, 2);
+      L.pipe(39, 3);
       L.at(43, 11, "e");
-      L.pillar(48, 3);
+      L.pipe(48, 3);
       L.at(53, 11, "e e");
       L.at(58, 8, "o o o");
       L.at(63, 8, "BPB");
@@ -80,8 +82,8 @@
       L.at(118, 11, "e e");
       L.at(123, 8, "?");
       L.at(127, 8, "P");
-      L.pillar(131, 2);
-      L.pillar(137, 3);
+      L.pipe(131, 2);
+      L.pipe(137, 3);
       L.at(141, 11, "e");
       L.stairs(144, 4, 1);
       // gap 148-150
@@ -130,7 +132,7 @@
       L.at(118, 8, "-----");
       L.at(119, 5, "ooo");
       L.at(124, 11, "e");
-      L.pillar(127, 3);
+      L.pipe(127, 3);
       // gap 131-133
       L.ground(134, 160, 10);
       L.at(138, 9, "e e");
@@ -157,7 +159,7 @@
       L.at(27, 11, "^^");
       // pit 31-34
       L.ground(35, 48);
-      L.pillar(38, 2);
+      L.pipe(38, 2);
       L.at(41, 11, "s");
       // a lift up to the high wall
       L.at(45, 7, "v");
@@ -189,7 +191,7 @@
       L.at(124, 8, "e");
       L.at(131, 11, "e");
       L.at(134, 11, "s");
-      L.pillar(137, 3);
+      L.pipe(137, 3);
       // gap 141-144
       L.ground(145, 219);
       L.at(148, 11, "e e e");

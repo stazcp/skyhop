@@ -39,9 +39,11 @@
   // each action is held while any source (keyboard, touch, gamepad) holds it
   const hold = { left: new Set(), right: new Set(), jump: new Set(), run: new Set() };
   let jumpQueued = false;
+  let fireQueued = false; // run doubles as the fire button
   const down = (a) => hold[a].size > 0;
   function press(action, src) {
     if (action === "jump" && !down("jump")) jumpQueued = true;
+    if (action === "run" && !down("run")) fireQueued = true;
     hold[action].add(src);
   }
   const release = (action, src) => hold[action].delete(src);
@@ -231,6 +233,7 @@
     tick: () => tone(1760, 0.03, "square", 0.025),
     clear: () => arp([523, 659, 784, 1047, 784, 1047], 0.12, "square", 0.05, 0.2),
     over: () => arp([392, 330, 262, 196], 0.25, "triangle", 0.12, 0.3),
+    fire: () => tone(880, 0.1, "square", 0.04, 220),
     pause: () => arp([660, 880], 0.08, "square", 0.04),
     win: () => arp([523, 659, 784, 1047, 1319, 1568, 2093], 0.1, "square", 0.05, 0.25),
   };
@@ -304,6 +307,7 @@
       stone: "#a3acb6", stoneDk: "#5c6570", stoneHi: "#d7dde3",
       plank: "#c8914f", plankDk: "#6b4524",
       cloud: "#ffffff", platform: "#d8a24a", accent: "#ff8c3a",
+      pipe: "#3bb0c9", pipeHi: "#a4ecf7", pipeDk: "#1d5a6b",
     },
     dusk: {
       sky: ["#3b1f5c", "#ff9a62"],
@@ -314,6 +318,7 @@
       stone: "#a88d9a", stoneDk: "#5a4253", stoneHi: "#d9c2cc",
       plank: "#c48552", plankDk: "#5a3122",
       cloud: "#ffc7a8", platform: "#e2914a", accent: "#ffd27a",
+      pipe: "#c98a4b", pipeHi: "#f2c48c", pipeDk: "#5e3420",
     },
     night: {
       sky: ["#070b24", "#28336a"],
@@ -324,6 +329,7 @@
       stone: "#7d84a8", stoneDk: "#3a3f63", stoneHi: "#b9bfdc",
       plank: "#8a7360", plankDk: "#3e3027",
       cloud: "#3a4683", platform: "#9aa3d8", accent: "#7ef0ff",
+      pipe: "#8f98b8", pipeHi: "#d3d8ec", pipeDk: "#353a5c",
     },
   };
 
@@ -431,6 +437,23 @@
       px(c, 4, 4, 2, 1, th.stoneHi);
       px(c, 10, 9, 2, 1, th.stoneDk);
     });
+    // pipes are two tiles wide: a lip on top ([ ]) over a body ({ })
+    const pipe = (c, left, lip) => {
+      const x0 = lip ? 0 : left ? 2 : 0;
+      const w = lip ? T : 14;
+      px(c, x0, 0, w, T, th.pipeDk);
+      px(c, x0 + (left ? 1 : 0), lip ? 1 : 0, w - 1, lip ? 14 : T, th.pipe);
+      if (left) {
+        px(c, x0 + 3, lip ? 2 : 0, 2, lip ? 12 : T, th.pipeHi);
+        px(c, x0 + 7, lip ? 2 : 0, 1, lip ? 12 : T, th.pipeHi);
+      } else {
+        px(c, 9, lip ? 2 : 0, 3, lip ? 12 : T, th.pipeDk);
+      }
+    };
+    out["["] = t((c) => pipe(c, true, true));
+    out["]"] = t((c) => pipe(c, false, true));
+    out["{"] = t((c) => pipe(c, true, false));
+    out["}"] = t((c) => pipe(c, false, false));
     out["-"] = t((c) => {
       px(c, 0, 0, T, 6, th.plankDk);
       px(c, 0, 1, T, 4, th.plank);
@@ -507,7 +530,7 @@
   }
 
   // ---------- world ----------
-  const SOLID = "#B?P=U";
+  const SOLID = "#B?P=U[]{}";
   let grid, W, theme, levelIndex, ents, player, particles, popups, bumps, flag, checkpoints, cam;
   let tick = 0;
 
@@ -563,7 +586,7 @@
     player = {
       x: spawn.x, y: spawn.y, w: 12, h: 14, vx: 0, vy: 0,
       big: false, face: 1, onGround: false, coyote: 0, buffer: 0,
-      invuln: 0, grow: 0, anim: 0, riding: null, combo: 0, deadT: 0,
+      invuln: 0, grow: 0, anim: 0, riding: null, combo: 0, deadT: 0, fire: false,
     };
     cam = 0;
     game.time = LEVEL_TIME;
@@ -663,7 +686,7 @@
     } else if (ch === "P") {
       grid[ty][tx] = "U";
       bumps.set(tx + "," + ty, 0);
-      ents.push({ kind: "spark", x: tx * T + 1, y: ty * T + 2, w: 14, h: 14, vx: 0, vy: 0, rise: 16, topY: ty * T, active: true });
+      ents.push({ kind: player.big ? "flame" : "spark", x: tx * T + 1, y: ty * T + 2, w: 14, h: 14, vx: 0, vy: 0, rise: 16, topY: ty * T, active: true });
       sfx("sprout");
     } else if (ch === "B") {
       if (player.big) {
@@ -684,17 +707,21 @@
     for (const e of ents) {
       if (e.dead || !overlap(e, zone)) continue;
       if (e.kind === "blob" || e.kind === "spiky") knock(e);
-      else if (e.kind === "spark" && !e.rise) e.vy = -3.5;
+      else if ((e.kind === "spark" || e.kind === "flame") && !e.rise) e.vy = -3.5;
     }
     if (tileAt(tx, ty - 1) === "o") collectTileCoin(tx, ty - 1);
   }
 
-  function knock(e) {
+  function knock(e, dir) {
     e.dead = "flip";
     e.vy = -4;
-    e.vx = player.x < e.x ? 1 : -1;
+    e.vx = dir ? Math.sign(dir) : player.x < e.x ? 1 : -1;
     addScore(100, e.x, e.y);
     sfx("stomp");
+  }
+
+  function puff(x, y) {
+    for (let i = 0; i < 4; i++) particles.push({ kind: "ember", x, y, vx: Math.cos(i * 1.57 + 0.78) * 1, vy: Math.sin(i * 1.57 + 0.78) * 1, t: 0, life: 12 });
   }
 
   const COMBO = [100, 200, 400, 800, 1000, 2000, 4000, 8000];
@@ -711,7 +738,11 @@
 
   function hurt() {
     if (player.invuln > 0 || player.grow > 0 || game.state !== "play") return;
-    if (player.big) {
+    if (player.fire) {
+      player.fire = false;
+      player.invuln = 120;
+      sfx("hurt");
+    } else if (player.big) {
       player.big = false;
       player.h = 14;
       player.y += 12;
@@ -727,6 +758,7 @@
     game.state = "dead";
     player.deadT = 0;
     player.big = false;
+    player.fire = false;
     stopMusic();
     sfx("die");
   }
@@ -737,6 +769,8 @@
     pollGamepad();
     const queued = jumpQueued;
     jumpQueued = false;
+    // a fire press only counts while playing (not one left over from a menu)
+    if (game.paused || game.state !== "play") fireQueued = false;
 
     if (game.paused) return;
     if (game.state === "title" || game.state === "over" || game.state === "win") {
@@ -833,6 +867,11 @@
     const run = down("run");
     if (queued) p.buffer = 7;
     else if (p.buffer > 0) p.buffer--;
+    if (fireQueued && p.fire && ents.filter((e) => e.kind === "fireball").length < 2) {
+      ents.push({ kind: "fireball", x: p.x + (p.face > 0 ? p.w : -6), y: p.y + 6, w: 6, h: 6, vx: p.face * 3.6, vy: 1.5, active: true, t: 0 });
+      sfx("fire");
+    }
+    fireQueued = false;
 
     // ride a platform: carry the player with it
     if (p.riding) {
@@ -977,10 +1016,37 @@
         else continue;
       }
 
-      if (e.kind === "spark") {
+      if (e.kind === "fireball") {
+        e.t++;
+        e.vy = Math.min(e.vy + 0.4, 5);
+        const wall = moveX(e, e.vx);
+        if (moveY(e, e.vy) === "land") e.vy = -3.2;
+        if (wall || e.x < cam - 16 || e.x > cam + VIEW_W + 16 || e.y > VIEW_H) {
+          e.gone = true;
+          if (wall) puff(e.x + 3, e.y + 3);
+          continue;
+        }
+        for (const o of ents) {
+          if ((o.kind === "blob" || o.kind === "spiky") && o.active && !o.dead && overlap(e, o)) {
+            knock(o, e.vx);
+            e.gone = true;
+            puff(e.x + 3, e.y + 3);
+            break;
+          }
+        }
+        continue;
+      }
+
+      if (e.kind === "spark" || e.kind === "flame") {
         if (e.rise > 0) {
           e.y -= 1;
-          if (--e.rise === 0) e.vx = 1;
+          if (--e.rise === 0 && e.kind === "spark") e.vx = 1;
+        } else if (e.kind === "flame") {
+          // the flame stays put, only falling if knocked off its block
+          if (e.vy) {
+            e.vy = Math.min(e.vy + 0.35, 6);
+            if (moveY(e, e.vy) === "land") e.vy = 0;
+          }
         } else {
           e.vy = Math.min(e.vy + 0.35, 6);
           if (moveX(e, e.vx)) e.vx = -e.vx;
@@ -996,6 +1062,7 @@
             p.y -= 12;
             p.grow = 40;
           }
+          if (e.kind === "flame") p.fire = true;
         }
         if (e.y > VIEW_H + 32) e.gone = true;
         continue;
@@ -1060,10 +1127,14 @@
   }
 
   // ---------- drawing ----------
-  const PIP = { line: "#2b1d14", body: "#ff8c3a", shade: "#d9692a", visor: "#e9fbff", eye: "#1b2a3a", tip: "#ffe14d" };
+  const PIP_BASE = { line: "#2b1d14", body: "#ff8c3a", shade: "#d9692a", visor: "#e9fbff", eye: "#1b2a3a", tip: "#ffe14d" };
+  // with the flame, Pip runs hot: white shell, red trim
+  const PIP_FIRE = { ...PIP_BASE, body: "#fff4e6", shade: "#ff5a3c", tip: "#ff5a3c" };
+  let PIP = PIP_BASE;
 
   function drawPip(c, p) {
     if (p.invuln > 0 && Math.floor(p.invuln / 4) % 2) return;
+    PIP = p.fire ? PIP_FIRE : PIP_BASE;
     // during a grow/shrink, flicker between the two sizes
     let big = p.big;
     if (p.grow && Math.floor(Math.abs(p.grow) / 5) % 2) big = !big;
@@ -1192,6 +1263,36 @@
     if (e.rise > 0) c.restore();
   }
 
+  function drawFlame(c, e) {
+    const x = Math.round(e.x), y = Math.round(e.y);
+    if (e.rise > 0) {
+      c.save();
+      c.beginPath();
+      c.rect(x - 2, e.topY - 20, 20, 20);
+      c.clip();
+    }
+    const flick = Math.floor(tick / 6) % 2;
+    px(c, x + 3, y + 13, 8, 1, "#7a2a10");
+    px(c, x + 2, y + 6, 10, 7, "#7a2a10");
+    px(c, x + 4, y + 2 + flick, 6, 5, "#7a2a10");
+    px(c, x + 6 - flick, y, 2, 3, "#7a2a10");
+    px(c, x + 3, y + 7, 8, 6, "#ff5a3c");
+    px(c, x + 5, y + 3 + flick, 4, 5, "#ff5a3c");
+    px(c, x + 6 - flick, y + 1, 1, 3, "#ff5a3c");
+    px(c, x + 5, y + 8, 4, 4, "#ffb13b");
+    px(c, x + 6, y + 10, 2, 2, "#fff3b0");
+    if (e.rise > 0) c.restore();
+  }
+
+  function drawFireball(c, e) {
+    const x = Math.round(e.x), y = Math.round(e.y);
+    const r = Math.floor(e.t / 3) % 2;
+    px(c, x + 1, y, 4, 6, "#ff5a3c");
+    px(c, x, y + 1, 6, 4, "#ff5a3c");
+    px(c, x + 1 + r, y + 1 + r, 3, 3, "#ffd23f");
+    px(c, x + 2 + r, y + 2, 1, 1, "#ffffff");
+  }
+
   const COIN_W = [8, 6, 2, 6];
   function drawCoin(c, x, y, frame) {
     const w = COIN_W[frame % 4];
@@ -1265,6 +1366,8 @@
     }
     for (const e of ents) {
       if (e.kind === "spark") drawSpark(ctx, e);
+      else if (e.kind === "flame") drawFlame(ctx, e);
+      else if (e.kind === "fireball") drawFireball(ctx, e);
       else if (e.kind === "blob" || e.kind === "spiky") drawEnemy(ctx, e);
     }
     drawPip(ctx, player);
@@ -1272,7 +1375,7 @@
     for (const q of particles) {
       if (q.kind === "coin") drawCoin(ctx, q.x - 4, Math.round(q.y), Math.floor(q.t / 3));
       else if (q.kind === "shard") px(ctx, Math.round(q.x), Math.round(q.y), 4, 4, th.brick);
-      else px(ctx, Math.round(q.x), Math.round(q.y), 2, 2, "#fff3b0");
+      else px(ctx, Math.round(q.x), Math.round(q.y), 2, 2, q.kind === "ember" ? "#ffb13b" : "#fff3b0");
     }
     for (const q of popups) drawText(ctx, q.text, Math.round(q.x), Math.round(q.y - q.t * 0.6), "#ffffff");
     ctx.restore();
@@ -1281,6 +1384,7 @@
   // ---------- HUD & menus ----------
   const hud = { score: $("hud-score"), coins: $("hud-coins"), world: $("hud-world"), time: $("hud-time"), lives: $("hud-lives") };
   const shown = {};
+  const runBtn = document.querySelector('[data-hold="run"]');
   function updateHud() {
     const vals = {
       score: String(game.score).padStart(6, "0"),
@@ -1292,6 +1396,8 @@
     for (const k in vals) {
       if (shown[k] !== vals[k]) hud[k].textContent = shown[k] = vals[k];
     }
+    const runLabel = player?.fire ? "FIRE" : "RUN";
+    if (shown.run !== runLabel) runBtn.textContent = shown.run = runLabel;
   }
 
   const overlay = $("overlay");
@@ -1314,7 +1420,7 @@
           <button data-act="start" class="primary">${game.reached ? "New game" : "Start"}</button>
           ${game.reached ? `<button data-act="continue">Continue · World ${game.reached + 1}</button>` : ""}
         </div>
-        <p class="keys"><kbd>←</kbd><kbd>→</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> run · <kbd>P</kbd> pause</p>
+        <p class="keys"><kbd>←</kbd><kbd>→</kbd> move · <kbd>Space</kbd> jump · <kbd>Shift</kbd> run / fire · <kbd>P</kbd> pause</p>
         <p class="best">${best}</p>`,
       intro: `
         <p class="world">World ${levelIndex + 1}</p>
@@ -1404,11 +1510,13 @@
 
   function startLevel(i, retry) {
     if (!retry) game.checkpoint = null;
-    // a powered-up Pip stays big into the next world
+    // a powered-up Pip keeps its power into the next world
     const keepBig = !retry && game.state === "clear" && player.big;
+    const keepFire = keepBig && player.fire;
     loadLevel(i);
     if (keepBig) {
       player.big = true;
+      player.fire = keepFire;
       player.h = 26;
       player.y -= 12;
     }
@@ -1425,7 +1533,7 @@
   function saveRun() {
     try {
       if (!inLevel()) return;
-      const run = { level: levelIndex, score: game.score, coins: game.coins, lives: game.lives, checkpoint: game.checkpoint, big: !!player?.big, time: null };
+      const run = { level: levelIndex, score: game.score, coins: game.coins, lives: game.lives, checkpoint: game.checkpoint, big: !!player?.big, fire: !!player?.fire, time: null };
       if (game.state === "flag" || game.state === "clear") {
         // the level is won: bank the time bonus and pick up at the next world
         run.score += game.time * 50;
@@ -1436,6 +1544,7 @@
       } else if (game.state === "dead") {
         run.lives--;
         run.big = false;
+        run.fire = false;
       } else if (game.state === "play") {
         run.time = game.time;
       }
@@ -1475,6 +1584,7 @@
     startLevel(run.level, true);
     if (run.big) {
       player.big = true;
+      player.fire = !!run.fire;
       player.h = 26;
       player.y -= 12;
     }
